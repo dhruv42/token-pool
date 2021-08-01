@@ -1,7 +1,6 @@
 const db = require('../connection');
 const { nanoid } = require('nanoid');
 const { calculateTimeStampDifference } = require('../helper/helper');
-// const { createJwtToken, getPayloadFromJwt } = require('../helper/jwt');
 
 const generateToken = async (req, res) => {
     try {
