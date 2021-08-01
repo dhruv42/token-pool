@@ -4,15 +4,15 @@ const { redisConnection, mongoConnection } = require('./config');
 
 class Database {
     constructor() {
-        this.mongoClient = new MongoClient(mongoConnection,{useUnifiedTopology:true});
+        this.mongoClient = new MongoClient(mongoConnection, { useUnifiedTopology: true });
         this.redisClient = null;
         this.mongoInit();
         this.redisInit();
     }
 
-    async mongoInit(){
+    async mongoInit() {
         await this.mongoClient.connect();
-        this.mongo = this.mongoClient.db(process.env.DB_NAME);
+        this.mongo = this.mongoClient.db();
         console.log("===== mongo connected =====");
     }
 

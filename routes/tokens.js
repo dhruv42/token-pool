@@ -20,9 +20,9 @@ const getToken = async (req, res) => {
             return res.status(400).send({ message: "userid is required in headers" });
         }
         const { redisClient, mongo } = db;
-
         const exists = await mongo.collection('tokens').findOne({ _id: userid });
 
+        /** check if the token is already assigned to the client, if it is, return */
         if (exists) {
             return res.status(200).send({
                 id: userid,
@@ -33,7 +33,9 @@ const getToken = async (req, res) => {
         if (!token) {
             return res.status(404).send({ message: "No token found" });
         }
-        await redisClient.del(token); // remove key once it is assigned to the client;
+        await redisClient.del(token); // remove key from redis once it is assigned to the client;
+
+        // add an entry in mongo to keep track of assigned tokens with TTL index of 60s.
         await mongo.collection('tokens').insertOne({
             "_id": userid,
             token,
@@ -49,8 +51,6 @@ const getToken = async (req, res) => {
     }
 }
 
-
-
 const unblockToken = async (req, res) => {
     try {
         const token = req.headers["access-token"];
@@ -63,6 +63,13 @@ const unblockToken = async (req, res) => {
             return res.status(404).send({ message: "token not found" });
         }
 
+        /**
+         * if the difference between generation time and current time is less than 0, 
+         * means token has already expired in redis, token is invalid.
+         * 
+         * if the difference is less than 60, we can unblock the token and put it in 
+         * the pool to make it available for others with left ttl.
+         */
         const difference = calculateTimeStampDifference(exists.token)
         if (difference < 0) {
             return res.status(400).send({ message: "Invalid token" });
@@ -79,7 +86,6 @@ const unblockToken = async (req, res) => {
     }
 }
 
-
 const deleteToken = async (req, res) => {
     try {
         const token = req.headers["access-token"];
@@ -87,6 +93,7 @@ const deleteToken = async (req, res) => {
             return res.status(400).send({ message: "token is required in headers" });
         }
         const { redisClient, mongo } = db;
+        // delete token from mongo as well as redis.
         await Promise.all([
             mongo.collection('tokens').deleteOne({ token: token }),
             redisClient.del(token)
@@ -99,9 +106,39 @@ const deleteToken = async (req, res) => {
     }
 }
 
+const keepAlive = async (req,res) => {
+    try {
+        const token = req.headers["access-token"];
+        if (!token) {
+            return res.status(400).send({ message: "token is required in headers" });
+        }
+        const { redisClient, mongo } = db;
+        const exists = await mongo.collection('tokens').findOne({ token: token });
+        if(!exists) {
+            return res.status(400).send({ message: "Invalid token" });
+        }
+
+        const difference = calculateTimeStampDifference(exists.token)
+
+        // if client hits within 1 min, remove old doc and insert new doc with new generation time.
+        if (difference < 60) {
+            await mongo.collection('tokens').deleteOne({ token: token });
+            await mongo.collection('tokens').insertOne({
+                "_id": exists.userid,
+                token:exists.token,
+                generationTime: new Date()
+            });
+        }
+        return res.status(204).send();
+    } catch (error) {
+        res.status(500).send({ message: error.message })
+    }
+}
+
 module.exports = {
     generateToken,
     getToken,
     unblockToken,
-    deleteToken
+    deleteToken,
+    keepAlive
 }
