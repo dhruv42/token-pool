@@ -54,9 +54,6 @@ const getToken = async (req, res) => {
 const unblockToken = async (req, res) => {
     try {
         const token = req.headers["access-token"];
-        if (!token) {
-            return res.status(400).send({ message: "token is required in headers" });
-        }
         const { redisClient, mongo } = db;
         const exists = await mongo.collection('tokens').findOne({ token: token });
         if (!exists) {
@@ -89,9 +86,6 @@ const unblockToken = async (req, res) => {
 const deleteToken = async (req, res) => {
     try {
         const token = req.headers["access-token"];
-        if (!token) {
-            return res.status(400).send({ message: "token is required in headers" });
-        }
         const { redisClient, mongo } = db;
         // delete token from mongo as well as redis.
         await Promise.all([
@@ -109,9 +103,6 @@ const deleteToken = async (req, res) => {
 const keepAlive = async (req,res) => {
     try {
         const token = req.headers["access-token"];
-        if (!token) {
-            return res.status(400).send({ message: "token is required in headers" });
-        }
         const { redisClient, mongo } = db;
         const exists = await mongo.collection('tokens').findOne({ token: token });
         if(!exists) {
